@@ -1,342 +1,362 @@
-# 🚀 Chattingo - Mini Hackathon Challenge
+# 💬 Chattingo — Dockerized Real-Time Chat Application
 
-A full-stack real-time chat application built with React, Spring Boot, and WebSocket technology. **Your mission**: Containerize this application using Docker and deploy it to Hostinger VPS using Jenkins CI/CD pipeline.
+Chattingo is a full-stack messaging application packaged with **Docker, multi-stage builds, Docker Compose, and Nginx**. This repository documents the deployment workflow for a React frontend, Spring Boot backend, and MySQL database—with REST API and SockJS/STOMP traffic routed through Nginx.
 
-## 🚨 **IMPORTANT: Registration Required**
 
-### **📝 [REGISTER NOW](https://forms.gle/NgNJNg8yQvPaA1Vz9)** 
-**Deadline: September 5, 2025**
+> 🎯 **Project focus:** containerization, service networking, environment-based configuration, persistent storage, image publishing, deployment verification, and troubleshooting. Containerization alone does **not** guarantee production readiness; review the security checklist before exposing the application publicly.
 
-**What you need to register:**
-- Your Name
-- Email ID
-- LinkedIn Profile URL
-- GitHub Profile URL
+## 🚀 At a Glance
 
-### **📤 [SUBMISSION FORM](https://forms.gle/ww3vPN29JTNRqzM27)**
-**Deadline: September 10, 2025 (11:59 PM)**
+- 🖥️ **Frontend:** React single-page application served as static production files by Nginx.
+- ⚙️ **Backend:** Spring Boot REST APIs, JWT authentication, and chat/message operations.
+- ⚡ **Real-time transport:** SockJS/STOMP through the `/ws` endpoint.
+- 🗄️ **Persistence:** MySQL with a named Docker volume.
+- 🔀 **Reverse proxy:** Nginx routes `/auth/`, `/api/`, and `/ws` requests to the backend.
+- 📦 **Deployment:** Docker multi-stage builds and Docker Compose.
+- 🛠️ **Operations:** build, deploy, inspect logs, restart services, validate messaging, and publish images to Docker Hub.
 
-### **📂 Repository Access**
-**Repository URL**: https://github.com/iemafzalhassan/chattingo
-- **Currently**: Private repository (registration phase)
-- **Will be public**: After registration closes (Sept 6)
-- **Action Required**: Fork & star the repository once it becomes public
+## 🏗️ Architecture
 
----
+```mermaid
+flowchart TD
+    U[Browser / Chattingo User]
+    N[Nginx Frontend Container<br/>React static assets]
+    B[Spring Boot Backend<br/>REST API + SockJS/STOMP]
+    D[(MySQL Database)]
+    V[(Named Volume<br/>chat-vol)]
 
-## 🎯 **Hackathon Challenge**
-Transform this vanilla application into a production-ready, containerized system with automated deployment!
+    U -->|HTTP / HTTPS| N
+    N -->|/auth/*| B
+    N -->|/api/*| B
+    N -->|/ws| B
+    B -->|JDBC / 3306| D
+    D --> V
 
-## 📋 Table of Contents
-
-- [Hackathon Overview](#-hackathon-overview)
-- [Architecture Overview](#️-architecture-overview)
-- [Technology Stack](#️-technology-stack)
-- [Quick Start](#-quick-start)
-- [Your Tasks](#-your-tasks)
-- [Application Features](#-application-features)
-- [Project Structure](#-project-structure)
-- [Submission Requirements](#-submission-requirements)
-- [Support & Resources](#-support--resources)
-- [Judging Criteria](#-judging-criteria)
-
-## 🏆 Hackathon Overview
-
-### 🎯 Project Goals
-- **Build & Deploy**: Create Dockerfiles and containerize the application
-- **CI/CD Pipeline**: Implement Jenkins automated deployment
-- **VPS Deployment**: Deploy on Hostinger VPS using modern DevOps practices
-
-### 📅 Timeline & Registration
-
-#### **Registration Phase (Sept 3-5)**
-📝 **[REGISTER HERE](https://forms.gle/NgNJNg8yQvPaA1Vz9)** - Complete by Sept 5
-
-**Registration Form Requirements:**
-- Name
-- Email ID  
-- LinkedIn Profile
-- GitHub Profile
-
-#### **Event Schedule**
-- **Sept 6**: Kickoff session (VPS setup, Docker + Jenkins basics)
-- **Sept 7-10**: Build period (3 days)
-- **Sept 10**: Submissions close at 11:59 PM
-- **Sept 11-12**: Judging & reviews
-- **Sept 13**: Winners announced
-
-## 🏗️ Architecture Overview
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend       │    │   Database      │
-│   (React)       │◄──►│   (Spring Boot) │◄──►│   (MySQL)       │
-│   Port: 80      │    │   Port: 8080    │    │   Port: 3306    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │
-         └────── WebSocket ──────┘
+    subgraph C[Docker Compose Network: chattingo]
+      N
+      B
+      D
+      V
+    end
 ```
 
-## 🛠️ Technology Stack
+### 🔌 Service map
 
-### Frontend
-- **React 18** - Modern UI framework
-- **Redux Toolkit** - State management
-- **Material-UI** - Component library
-- **Tailwind CSS** - Utility-first CSS
-- **WebSocket (SockJS + STOMP)** - Real-time messaging
-- **React Router** - Client-side routing
+| Service | Responsibility | Internal port | Recommended exposure |
+|---|---|---:|---|
+| `frontend` | Serves React assets and proxies requests | Match Nginx `listen` (commonly `80` or `8080`) | Public entry point on host port `80`/`443` |
+| `backend` | REST APIs, authentication, chat and message logic, WebSocket endpoint | `8080` | Keep private on the Compose network where possible |
+| `mysql` | Stores application data | `3306` | Internal Compose network only; do not expose publicly |
 
-### Backend
-- **Spring Boot 3.3.1** - Java framework
-- **Spring Security** - Authentication & authorization
-- **Spring Data JPA** - Database operations
-- **Spring WebSocket** - Real-time communication
-- **JWT** - Token-based authentication
-- **MySQL** - Database
+**⚠️ Port consistency matters:** the Nginx `listen` port, frontend container port, and Compose port mapping must agree. A complete `/etc/nginx/nginx.conf` and a server-only `/etc/nginx/conf.d/default.conf` are different file formats—do not interchange them.
 
-### DevOps (Your Tasks)
-- **Docker** - Containerization (YOU BUILD)
-- **Docker Compose** - Multi-container orchestration (YOU BUILD)
-- **Jenkins** - CI/CD pipeline (YOU BUILD)
-- **Nginx** - Web server & reverse proxy (YOU BUILD)
+## 🧰 Technology Stack
 
-## 🚀 Quick Start
+| Layer | Technologies |
+|---|---|
+| Frontend | React 18, Create React App, React Router, Redux |
+| Real-time client | SockJS, STOMP.js |
+| Backend | Java 17, Spring Boot 3.3.1 |
+| API and persistence | Spring Web, Spring Data JPA, Hibernate |
+| Security | Spring Security, JWT (JJWT 0.11.5), BCrypt password encoding |
+| Database | MySQL — use the version configured in `docker-compose.yml` |
+| Web server | Nginx reverse proxy and static-file server |
+| Delivery | Docker, Docker Compose, multi-stage Dockerfiles, Maven, npm |
 
-### **Just Registered? Start Here!**
+## 📁 Repository Structure
 
-#### **Step 1: Fork & Clone**
-```bash
-# Fork this repository on GitHub: https://github.com/iemafzalhassan/chattingo
-# Then clone your fork
-git clone https://github.com/YOUR_USERNAME/chattingo.git
-cd chattingo
-```
+Your filenames and build contexts may differ slightly. **Make sure the Dockerfile paths in `docker-compose.yml` match the files that actually exist.**
 
-#### **Step 2: Join Discord**
-- **[🗓┃Events-Announcement](https://discord.gg/jYeffuxs)**: Stay updated
-- **[📝┃Events-Chat](https://discord.gg/bHVKCYj4)**: Get technical support
-
-#### **Step 3: Local Development Setup**
-Follow **[CONTRIBUTING.md](CONTRIBUTING.md)** for detailed setup instructions.
-
-#### **Step 4: Follow the Timeline**
-- **Sept 7-10**: Build your implementation
-- **Sept 10**: Submit before 11:59 PM
-
-### **Reference Guides**
-- **Detailed Setup & Deployment**: **[CONTRIBUTING.md](CONTRIBUTING.md)**
-
-## 🔧 **YOUR TASKS**
-
-### **Task 1: Docker Implementation (5 Marks)**
-
-You need to create these files from scratch:
-
-#### **Frontend Dockerfile** (3-stage build)
-- Stage 1: Node.js build environment
-- Stage 2: Build React application  
-- Stage 3: Nginx runtime server
-
-#### **Backend Dockerfile** (3-stage build)
-- Stage 1: Maven build environment
-- Stage 2: Build Spring Boot application
-- Stage 3: JRE runtime
-
-#### **Docker Compose** (Root level)
-Create `docker-compose.yml` to orchestrate all services.
-
-**Scoring**: Single Stage (2), Two Stage (4), Multi Stage (5)
-
-### **Task 2: Jenkins CI/CD Pipeline (17 Marks)**
-
-Create a `Jenkinsfile` with these stages:
-
-```groovy
-pipeline {
-    agent any
-    
-    stages {
-        stage('Git Clone') { 
-            // Clone repository from GitHub (2 Marks)
-        }
-        stage('Image Build') { 
-            // Build Docker images for frontend & backend (2 Marks)
-        }
-        stage('Filesystem Scan') { 
-            // Security scan of source code (2 Marks)
-        }
-        stage('Image Scan') { 
-            // Vulnerability scan of Docker images (2 Marks)
-        }
-        stage('Push to Registry') { 
-            // Push images to Docker Hub/Registry (2 Marks)
-        }
-        stage('Update Compose') { 
-            // Update docker-compose with new image tags (2 Marks)
-        }
-        stage('Deploy') { 
-            // Deploy to Hostinger VPS (5 Marks)
-        }
-    }
-}
-```
-
-### Additional Requirements
-- **Jenkins Shared Library**: 3 Marks
-- **Active Engagement**: 2 Marks
-- **Creativity**: 2 Marks
-- **Quality Storytelling**: 10 Marks
-  - README (Compulsory): 3 Marks
-  - Blog (Optional): 2 Marks
-  - Video (Compulsory): 5 Marks
-
-### **Task 3: VPS Deployment**
-- **Hostinger VPS Setup**: Ubuntu 22.04 LTS, 2GB RAM
-- **Domain Configuration**: Setup your domain with DNS
-- **SSL Certificate**: Configure HTTPS with Let's Encrypt
-- **Production Deployment**: Automated deployment via Jenkins
-
-**Detailed Instructions**: See **[CONTRIBUTING.md](CONTRIBUTING.md)**
-
-## 📱 Application Features
-
-### Core Functionality
-- ✅ User authentication (JWT)
-- ✅ Real-time messaging (WebSocket)
-- ✅ Group chat creation
-- ✅ User profile management
-- ✅ Message timestamps
-- ✅ Responsive design
-
-### API Endpoints
-```
-POST   /api/auth/register    - User registration
-POST   /api/auth/login       - User login
-GET    /api/users            - Get users
-POST   /api/chats/create     - Create chat
-GET    /api/chats            - Get user chats
-POST   /api/messages/create  - Send message
-GET    /api/messages/{chatId} - Get chat messages
-WS     /ws                   - WebSocket endpoint
-```
-
-## 📊 Project Structure
-
-```
+```text
 chattingo/
-├── backend/                 # Spring Boot application
-│   ├── src/main/java/
-│   │   └── com/chattingo/
-│   │       ├── Controller/  # REST APIs
-│   │       ├── Service/     # Business logic
-│   │       ├── Model/       # JPA entities
-│   │       └── config/      # Configuration
-│   ├── src/main/resources/
-│   │   └── application.properties
-│   ├── .env                 # Environment variables
-│   └── pom.xml
-├── frontend/               # React application
-│   ├── src/
-│   │   ├── Components/     # React components
-│   │   ├── Redux/          # State management
-│   │   └── config/         # API configuration
-│   ├── .env                # Environment variables
-│   └── package.json
-├── CONTRIBUTING.md         # Detailed setup & deployment guide
-└── README.md              # This file
+├── docker-compose.yml
+├── .env                  # Local secrets; do not commit
+├── .env.example          # Safe placeholder template
+├── README.md
+├── frontend/
+│   ├── Dockerfile        # Or Dockerfile.multi; match Compose
+│   ├── .dockerignore
+│   ├── nginx.conf        # Full Nginx config, if used
+│   ├── default.conf      # Server block, if used instead
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── public/
+│   └── src/
+└── backend/
+    ├── Dockerfile        # Or Dockerfile.multi; match Compose
+    ├── .dockerignore
+    ├── pom.xml
+    └── src/
 ```
 
-## 🎥 **Submission Requirements**
+## ✅ Prerequisites
 
-### **📤 Submission Form: [Submit Here](https://forms.gle/ww3vPN29JTNRqzM27)**
-**Deadline: Sept 10, 11:59 PM**
+- Linux workstation or server (deployment example: Ubuntu on AWS EC2).
+- Docker Engine and the Docker Compose v2 plugin.
+- Git, if cloning or updating the project.
+- Network access to download base images and npm/Maven dependencies.
+- Strong database credentials and a long, random JWT signing secret.
 
-### **Required Submission Fields**
-1. **Name** - Your full name
-2. **Email ID** - Contact email
-3. **GitHub Repository URL** - Your forked and implemented project
-4. **Video Demo URL** - 3-minute demo video (YouTube/Drive link)
-5. **Live Application URL** - Your deployed application on VPS
-6. **Blog URL** - Technical writeup (Optional but recommended)
-7. **README URL** - Link to your updated README file
+The multi-stage builds run Node.js and Maven in build stages; you do not need to install them directly on the deployment host.
 
-### **Required Deliverables**
-1. **GitHub Repository** with your implementation
-   - ✅ Dockerfiles (Backend & Frontend - 3-stage builds)
-   - ✅ docker-compose.yml (Root level orchestration)
-   - ✅ Jenkinsfile (Complete CI/CD pipeline)
-   - ✅ nginx.conf (Frontend configuration)
-   - ✅ Environment configurations
-   - ✅ Updated README with deployment instructions
+Check the tools:
 
-2. **Live Application** deployed on Hostinger VPS
-   - ✅ Working chat application with HTTPS
-   - ✅ SSL certificate configured
-   - ✅ Domain properly configured
-   - ✅ All features functional (registration, login, messaging)
+```bash
+docker --version
+docker compose version
+git --version
+```
 
-3. **Video Demo** (3 minutes max) showing:
-   - ✅ Local Docker setup demonstration
-   - ✅ Jenkins pipeline execution
-   - ✅ Live application walkthrough on VPS
-   - ✅ Key features demonstration
+Use `sudo` before Docker commands when your Linux user does not have permission to access the Docker daemon.
 
-### **Bonus Points**
-1. **Blog Post** - Technical writeup of your implementation (2 marks)
-2. **Additional Features** - Enhancements to the chat app
-3. **Monitoring** - Application monitoring and logging
-4. **Security** - Additional security measures
+## ⚙️ Configure Environment Variables
 
-## 🚀 **Getting Started with the Challenge**
+Create a root-level `.env` file beside `docker-compose.yml` when Compose uses `${VARIABLE}` substitutions. Compose does **not** automatically load `backend/.env` for Compose-file interpolation. A service-specific environment file must be declared with `env_file:` if you choose that approach.
 
-### **Implementation Flow** (Following Hackathon Timeline)
+Example template — replace every placeholder before deployment:
 
-#### **Phase 1: Registration (Sept 3-5)**
-1. **[Register Here](https://forms.gle/NgNJNg8yQvPaA1Vz9)** with your details
-2. **Fork this repository**: https://github.com/iemafzalhassan/chattingo
-3. **Join Discord** channels for updates and support
+```dotenv
+# MySQL initialization
+MYSQL_DATABASE=chattingo
+MYSQL_USER=chattingo_app
+MYSQL_PASSWORD=replace_with_a_strong_app_password
+MYSQL_ROOT_PASSWORD=replace_with_a_different_root_password
 
-#### **Phase 2: Kickoff Session (Sept 6)**
-- **Attend intro session** - VPS setup guide, Docker & Jenkins basics
-- **Get your VPS** access and domain setup
-- **Ask questions** and clarify requirements
+# Spring Boot datasource
+SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/chattingo?serverTimezone=UTC
+SPRING_DATASOURCE_USERNAME=chattingo_app
+SPRING_DATASOURCE_PASSWORD=replace_with_a_strong_app_password
 
-#### **Phase 3: Build Period (Sept 7-10)**
-- **Day 1**: Local development setup → **[CONTRIBUTING.md](CONTRIBUTING.md)**
-- **Day 2**: Docker & Jenkins implementation  
-- **Day 3**: VPS deployment → **[CONTRIBUTING.md](CONTRIBUTING.md)**
+# Authentication and runtime
+JWT_SECRET=replace_with_a_long_random_secret
+SPRING_PROFILES_ACTIVE=prod
 
-#### **Phase 4: Submission (Sept 10)**
-📤 **[SUBMIT HERE](https://forms.gle/ww3vPN29JTNRqzM27)** before 11:59 PM
+# Use the real browser origin when required by the app's CORS/WebSocket settings
+CORS_ALLOWED_ORIGINS=http://YOUR_PUBLIC_HOST
+CORS_ALLOWED_METHODS=GET,POST,PUT,DELETE,OPTIONS
+```
 
-#### **Phase 5: Results (Sept 11-13)**
-- **Sept 11-12**: Judging & reviews
-- **Sept 13**: Winners announced
+### 🔑 Variable checklist
 
-## 📞 Support & Resources
+- `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` — database initialization and credentials.
+- `SPRING_DATASOURCE_URL` — use the Compose hostname `mysql`, not `localhost`, from the backend container.
+- `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` — must match the application database user.
+- `JWT_SECRET` — keep secret and stable across backend restarts; use a cryptographically strong value.
+- `SPRING_PROFILES_ACTIVE` — select a profile only if the application defines it.
+- `CORS_ALLOWED_ORIGINS`, `CORS_ALLOWED_METHODS` — take effect only if the application reads these properties.
 
-### Discord Channels
-- **[🗓┃𝖤𝗏𝖾𝗇𝗍𝗌-𝖠𝗇𝗇𝗈𝗎𝗇𝖼𝖾𝗆𝖾𝗇𝗍](https://discord.gg/jYeffuxs)**: Stay Active in the Announcement channel for Hackathon Update. 
-- **[📝┃𝖤𝗏𝖾𝗇𝗍𝗌-𝖢𝗁𝖺𝗍](https://discord.gg/bHVKCYj4)**: Technical support.
+> 📝 **Existing database volume:** MySQL image variables generally initialize a fresh data directory. Changing `MYSQL_USER` or `MYSQL_PASSWORD` later does not automatically update an existing database user's credentials. Update the MySQL user explicitly when reusing a persisted volume.
 
-### Reference Links
-- [Hackathon Repository](https://github.com/iemafzalhassan/chattingo)
-- [Docker Documentation](https://docs.docker.com/)
-- [Jenkins Documentation](https://www.jenkins.io/doc/)
-- [Hostinger VPS Guide](https://www.hostinger.com/tutorials/vps)
+## 🌐 Service Communication
 
-## 🏅 Judging Criteria
+- **Browser → Nginx:** users access the public frontend origin; Nginx serves the React build.
+- **Nginx → backend:** requests for `/auth/`, `/api/`, and `/ws` are forwarded to `backend:8080` over the Compose network.
+- **Backend → MySQL:** Spring Boot connects to `mysql:3306` using JDBC.
+- **Database → volume:** the `chat-vol` named volume preserves MySQL data when containers are recreated.
 
-| Component | Marks | Description |
-|-----------|-------|-------------|
-| Dockerfile | 5 | Multi-stage implementation |
-| Jenkinsfile | 17 | Complete CI/CD pipeline |
-| Shared Library | 3 | Reusable Jenkins components |
-| Engagement | 2 | Active participation |
-| Creativity | 2 | Unique features/implementation |
-| Documentation | 10 | README, blog, video |
+For a same-origin deployment, the browser-side API base URL should use relative paths rather than a Docker-only hostname or a hard-coded localhost URL:
 
----
+```javascript
+export const BASE_API_URL = process.env.REACT_APP_API_URL || "";
+```
 
-**Good luck with your hackathon project! 🚀**
+Create React App embeds `REACT_APP_*` values at **build time**. Rebuild the frontend image after changing frontend environment configuration or source code.
+
+## 🚀 Build and Deploy
+
+Run these commands from the project root, where `docker-compose.yml` lives.
+
+### 1. Validate the Compose file
+
+```bash
+cd ~/chattingo
+sudo docker compose config
+```
+
+Resolve missing variables, invalid YAML, and incorrect build paths before building. Avoid posting the rendered output publicly if it contains expanded secrets.
+
+### 2. Verify the build context
+
+```bash
+ls -la frontend/
+ls -la backend/
+```
+
+Check that every Dockerfile and Nginx config referenced by Compose exists. Ensure `.dockerignore` does not exclude required inputs such as `src/`, `public/`, `package-lock.json`, or the Nginx configuration.
+
+### 3. Build and start
+
+```bash
+sudo docker compose build
+sudo docker compose up -d
+```
+
+Rebuild a single service after changing its source or Dockerfile:
+
+```bash
+sudo docker compose build --no-cache frontend
+sudo docker compose build --no-cache backend
+sudo docker compose up -d
+```
+
+### 4. Check service state
+
+```bash
+sudo docker compose ps
+sudo docker images
+```
+
+Confirm the frontend and backend remain running and MySQL is healthy, if a health check is configured, before testing the app.
+
+## Deployment Verification
+
+### 1. Frontend reachability
+
+```bash
+curl -I http://127.0.0.1/
+```
+
+For an external check, visit `http://YOUR_PUBLIC_HOST/` and confirm your host firewall and cloud security group allow inbound TCP port `80`. Configure HTTPS and a valid certificate before sending credentials over the public internet.
+
+### 2. Authentication and API
+
+The backend defines these authentication routes:
+
+- `POST /auth/signup`
+- `POST /auth/signin`
+
+Use a unique test email address. Inspect response codes and browser DevTools → **Network** to verify that requests reach the backend. Do not share passwords, JWTs, or other session secrets.
+
+### 3. Real-time messaging
+
+Test with two separate test accounts and browser sessions:
+
+1. Sign in to both sessions.
+2. Open or create a conversation between the accounts.
+3. Send a test message.
+4. Confirm it persists and appears in the other session without refreshing the page.
+5. Check DevTools → **Network** for `/ws` SockJS traffic and message API responses.
+6. Inspect backend logs if the REST call or WebSocket connection fails.
+
+**A successful signup does not prove real-time messaging works.** Verify REST persistence, WebSocket connectivity, subscriptions, and message delivery separately.
+
+## 🛠️ Operations Runbook
+
+### View logs
+
+```bash
+# All services
+sudo docker compose logs --tail=100
+
+# One service at a time
+sudo docker compose logs --tail=100 frontend
+sudo docker compose logs --tail=100 backend
+sudo docker compose logs --tail=100 mysql
+
+# Follow backend logs while testing
+sudo docker compose logs -f backend
+```
+
+### Restart services or apply changes
+
+```bash
+sudo docker compose restart frontend
+sudo docker compose restart backend
+
+# Rebuild changed images and recreate services
+sudo docker compose up -d --build
+```
+
+### Stop the stack safely
+
+```bash
+sudo docker compose down
+```
+
+> 🛑 Avoid `sudo docker compose down -v` unless you deliberately want to remove named volumes and delete persisted database data.
+
+### Useful diagnostics
+
+```bash
+sudo docker compose ps
+sudo docker compose logs --tail=100 frontend backend mysql
+
+# Inspect selected containers; adjust names if your Compose project uses other names
+sudo docker ps -a
+```
+
+## 📦 Publish Images to Docker Hub
+
+> Replace `DOCKERHUB_USERNAME` with your Docker Hub username or organization. Check the actual image names with `sudo docker images` before tagging.
+
+### 1. Build and tag
+
+```bash
+sudo docker compose build frontend backend
+
+sudo docker tag chattingo-frontend:latest DOCKERHUB_USERNAME/chattingo-frontend:v1.0.0
+sudo docker tag chattingo-backend:latest DOCKERHUB_USERNAME/chattingo-backend:v1.0.0
+```
+
+If your Compose configuration assigns different image names, use those names in the `docker tag` commands.
+
+### 2. Sign in and push
+
+```bash
+sudo docker login -u DOCKERHUB_USERNAME
+sudo docker push DOCKERHUB_USERNAME/chattingo-frontend:v1.0.0
+sudo docker push DOCKERHUB_USERNAME/chattingo-backend:v1.0.0
+```
+
+- Prefer a Docker Hub personal access token for authentication.
+- Create the target repositories on Docker Hub first if required.
+- Never bake credentials or `.env` contents into an image or frontend bundle.
+
+### 3. Deploy published images
+
+Set the Compose `image:` values to the correct published repositories and tags, then run:
+
+```bash
+sudo docker compose pull
+sudo docker compose up -d
+```
+
+Keep `build:` entries when you still need local builds. For image-only deployment, remove them only after verifying that the published tags are available and pull access works.
+
+## 🔍 Troubleshooting
+
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| `COPY nginx.conf ... not found` | Wrong filename, build context, or ignore rules | Check the Dockerfile, Compose `context`, and frontend ignore files. |
+| `/app/dist` not found | Dockerfile expects Vite output | This project uses Create React App; copy `/app/build` into the Nginx web root. |
+| Nginx exits with `illegal option -g` | Image entrypoint expects an explicit executable | Match the selected image's entrypoint; the conventional command is `CMD ["nginx", "-g", "daemon off;"]`. |
+| Nginx fails on `$connection_upgrade` | `map` variable is missing or in the wrong config context | Define `map` inside `http {}` in a full Nginx config. |
+| Frontend loads but signup fails | Stale frontend bundle, proxy mismatch, or backend exception | Use relative API paths, rebuild the frontend image, inspect Network and backend logs. |
+| Signup works but chat is not real-time | SockJS handshake, origin restrictions, proxy settings, or mismatched topic destinations | Inspect `/ws`, browser Console, Spring WebSocket configuration, and subscription destinations. |
+| `502 Bad Gateway` | Backend unavailable or proxy hostname/port mismatch | Run `docker compose ps`; check that Nginx targets `backend:8080`. |
+| Backend cannot connect to MySQL | `localhost` in JDBC URL, mismatched credentials, or DB not ready | Use `mysql` as the Compose hostname and compare environment variables. |
+| Backend exits during startup | Database/JWT configuration or application exception | Read backend logs and fix the first relevant exception. |
+| Env changes do not take effect | Wrong Compose env file or persisted MySQL state | Check variable interpolation and update existing database users explicitly if needed. |
+| Public site is unreachable | Incorrect published port or firewall/security-group rule | Check Compose port mapping, host firewall, cloud security group, and Nginx `listen`. |
+
+## 🔐 Security and Production Checklist
+
+Before public production use:
+
+- [ ] 🔒 Enable HTTPS with a valid certificate.
+- [ ] 🔑 Use unique, strong database credentials and a cryptographically strong JWT secret.
+- [ ] 🚫 Keep `.env`, tokens, private keys, and database credentials out of Git and container images.
+- [ ] 🧱 Avoid exposing MySQL port `3306`; keep the backend private unless direct access is required.
+- [ ] 🌍 Restrict CORS and WebSocket origins to trusted origins. CORS is not a substitute for authorization.
+- [ ] 🛡️ Review Content Security Policy and allow only the required origins and WebSocket connections.
+- [ ] 👥 Verify that REST endpoints and WebSocket subscriptions enforce chat membership and authorization; predictable chat IDs must not grant access to another user's conversation.
+- [ ] 🗃️ Back up MySQL and test restoring the backup before making schema or database changes.
+- [ ] 📋 Review `spring.jpa.hibernate.ddl-auto=update` and SQL logging settings before production deployment.
+- [ ] 🔄 Pin and update base images and dependencies; scan images for known vulnerabilities.
+- [ ] 📈 Configure appropriate logs, monitoring, resource limits, and a recovery procedure.
+
+**Production note:** this repository documents containerization and deployment practices. It does not certify the source application as production-ready; independently validate authentication, authorization, secret handling, TLS, backups, observability, and load behavior in your target environment.
+
+## 🔗 References
+
+- 🧑‍💻 [Original Chattingo source](https://github.com/TrainWithShubham/chattingo)
