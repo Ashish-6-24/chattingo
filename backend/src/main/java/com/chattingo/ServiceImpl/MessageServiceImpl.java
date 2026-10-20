@@ -1,3 +1,4 @@
+
 package com.chattingo.ServiceImpl;
 
 import java.time.LocalDateTime;
@@ -29,13 +30,15 @@ public class MessageServiceImpl implements MessageService {
     @Autowired
     private ChatServiceImpl chatService;
 
-     @Autowired
+    @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
     @Override
-    public Message sendMessage(SendMessageRequest req) throws UserException, ChatException {
-        User user = this.userService.findUserById(req.getUserId());
-        Chat chat = this.chatService.findChatById(req.getChatId());
+    public Message sendMessage(SendMessageRequest req)
+            throws UserException, ChatException {
+
+        User user = userService.findUserById(req.getUserId());
+        Chat chat = chatService.findChatById(req.getChatId());
 
         Message message = new Message();
         message.setChat(chat);
@@ -43,50 +46,71 @@ public class MessageServiceImpl implements MessageService {
         message.setContent(req.getContent());
         message.setTimestamp(LocalDateTime.now());
 
-        message = this.messageRepository.save(message);
+        // Save the message to MySQL first
+        message = messageRepository.save(message);
 
-        // Send message to WebSocket topic based on chat type
+        // Broadcast to the appropriate chat destination
         if (chat.isGroup()) {
-            messagingTemplate.convertAndSend("/group/" + chat.getId(), message);
+            messagingTemplate.convertAndSend(
+                "/group/" + chat.getId(),
+                message
+            );
         } else {
-            messagingTemplate.convertAndSend( "/user/" + chat.getId(), message);
+            messagingTemplate.convertAndSend(
+                "/chat/" + chat.getId(),
+                message
+            );
         }
 
         return message;
     }
 
     @Override
-    public List<Message> getChatsMessages(Integer chatId, User reqUser) throws ChatException, UserException {
+    public List<Message> getChatsMessages(
+            Integer chatId, User reqUser)
+            throws ChatException, UserException {
 
-        Chat chat = this.chatService.findChatById(chatId);
+        Chat chat = chatService.findChatById(chatId);
 
         if (!chat.getUsers().contains(reqUser)) {
-            throw new UserException("You are not related to this chat");
+            throw new UserException(
+                "You are not related to this chat"
+            );
         }
 
-        List<Message> messages = this.messageRepository.findByChatId(chat.getId());
-
-        return messages;
-
+        return messageRepository.findByChatId(chat.getId());
     }
 
     @Override
-    public Message findMessageById(Integer messageId) throws MessageException {
-        Message message = this.messageRepository.findById(messageId)
-                .orElseThrow(() -> new MessageException("The required message is not found"));
-        return message;
+    public Message findMessageById(Integer messageId)
+            throws MessageException {
+
+        return messageRepository.findById(messageId)
+            .orElseThrow(() ->
+                new MessageException(
+                    "The required message is not found"
+                )
+            );
     }
 
     @Override
-    public void deleteMessage(Integer messageId, User reqUser) throws MessageException {
-        Message message = this.messageRepository.findById(messageId)
-                .orElseThrow(() -> new MessageException("The required message is not found"));
+    public void deleteMessage(Integer messageId, User reqUser)
+            throws MessageException {
+
+        Message message = messageRepository.findById(messageId)
+            .orElseThrow(() ->
+                new MessageException(
+                    "The required message is not found"
+                )
+            );
 
         if (message.getUser().getId() == reqUser.getId()) {
-            this.messageRepository.delete(message);
+            messageRepository.delete(message);
         } else {
-            throw new MessageException("You are not authorized for this task");
+            throw new MessageException(
+                "You are not authorized for this task"
+            );
         }
     }
-
 }
+
