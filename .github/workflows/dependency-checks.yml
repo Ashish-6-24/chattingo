@@ -2,10 +2,11 @@ name: Dependency Security Scan
 
 on:
   workflow_call:
-# multiple pushes commits quickly to a pull request stale jobs are automatically canceled.
+
 concurrency:
   group: dependency-check-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 
 permissions:
   contents: read
@@ -26,7 +27,9 @@ jobs:
         with:
           persist-credentials: false
 
+
       - name: Run Trivy Vulnerability Scanner
+        id: trivy_scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -36,10 +39,12 @@ jobs:
           output: trivy-results.sarif
           severity: HIGH,CRITICAL
           exit-code: "1"
+          ignore-unfixed: false
           hide-progress: true
 
+
       - name: Print Vulnerability Details
-        if: ${{ failure() && steps.trivy_scan.outcome == 'failure' }}
+        if: ${{ always() && steps.trivy_scan.outcome == 'failure' }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
