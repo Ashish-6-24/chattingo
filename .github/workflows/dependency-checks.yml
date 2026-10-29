@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
@@ -38,9 +38,32 @@ jobs:
           exit-code: "1"
           hide-progress: true
 
+      - name: Print Vulnerability Details
+        if: ${{ failure() && steps.trivy_scan.outcome == 'failure' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          ignore-unfixed: false
+          hide-progress: true
+
+
       - name: Upload Scan Results to GitHub Security
         if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
           category: trivy-dependency-scan
+
+      - name: Upload Trivy Report Artifact
+        if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-dependency-report
+          path: trivy-results.sarif
+          if-no-files-found: error
+          retention-days: 14
