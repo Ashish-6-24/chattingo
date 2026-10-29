@@ -8,6 +8,10 @@ on:
 
 # CI Pipeline Jobs
 jobs:
+  # Code Quality
+  code_quality:
+    uses: ./.github/workflows/code_quality.yml
+    secrets: inherit
   # Secrets Scanning
   secrets_scanning:
     uses: ./.github/workflows/secrets-scanning.yml
