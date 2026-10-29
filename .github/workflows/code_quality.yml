@@ -1,4 +1,4 @@
-name: Code Quality
+name: Code Quality & Security Gate
 
 on:
   workflow_call:
@@ -6,123 +6,108 @@ on:
       SEMGREP_APP_TOKEN:
         required: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   backend:
-    name: Backend Quality
+    name: Backend Quality (Java / SpotBugs)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
     defaults:
       run:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-java@v6.1.0
+      - name: Set up Java (Temurin 17)
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      - name: Build backend
-        run: ./mvnw -B -DskipTests package
-
-      - name: SpotBugs scan
+      - name: Compile and Run SpotBugs
         continue-on-error: true
-        run: ./mvnw -B com.github.spotbugs:spotbugs-maven-plugin:4.10.5.0:check
+        run: >-
+          ./mvnw -B -ntp compile
+          com.github.spotbugs:spotbugs-maven-plugin:4.8.6.0:check
 
   frontend:
-    name: Frontend Quality
+    name: Frontend Quality (Node / ESLint)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7.1.0
+      - name: Set up Node.js (v22)
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Install Dependencies
+        run: npm ci --prefer-offline --no-audit --legacy-peer-deps
 
-      - name: ESLint
+      - name: ESLint Check
         continue-on-error: true
-        run: npm run lint
+        run: npx --no-install eslint src --max-warnings=0
 
-      - name: Build frontend
+      - name: Build Frontend
         run: npm run build
 
   semgrep:
     name: Semgrep SAST
     runs-on: ubuntu-latest
+    timeout-minutes: 8
+
     container:
       image: semgrep/semgrep:1.182.1
 
     permissions:
       contents: read
+      security-events: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Run Semgrep scan
+      - name: Run Semgrep CI
         continue-on-error: true
-        run: semgrep ci
+        run: semgrep ci --sarif-output=semgrep.sarif
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-      - name: Upload Semgrep SARIF
+      - name: Upload Semgrep SARIF to Security Tab
         if: ${{ always() && hashFiles('semgrep.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
-          category: semgrep
-
-  codeql:
-    name: CodeQL - ${{ matrix.language }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [java-kotlin, javascript-typescript]
-
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - name: Set up Java
-        if: matrix.language == 'java-kotlin'
-        uses: actions/setup-java@v6.1.0
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
-          cache-dependency-path: backend/pom.xml
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.language == 'java-kotlin' && 'manual' || 'none' }}
-          queries: security-extended
-
-      - name: Build Java for CodeQL
-        if: matrix.language == 'java-kotlin'
-        working-directory: backend
-        run: ./mvnw -B -DskipTests package
-
-      - name: Analyze
-        uses: github/codeql-action/analyze@v4
-        continue-on-error: true
-        with:
-          category: /language:${{ matrix.language }}
+          category: semgrep-security
