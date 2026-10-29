@@ -1,0 +1,14 @@
+# Goal: To call the workflows in the order to implement shift left
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+# CI Pipeline Jobs
+jobs:
+  # Secrets Scanning
+  secrets_scanning:
+    uses: ./.github/workflows/secrets-scanning.yml
+    secrets: inherit
