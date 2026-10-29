@@ -1,62 +1,37 @@
-# Gitleaks configuration file
-title = "Chattingo Project Gitleaks configuration"
+# betterleaks configuration file
+title = "Chattingo Project Gitleaks Configuration"
 
+# 1. Inherit all default Gitleaks patterns (highly recommended)
 [extend]
 useDefault = true
 
-# ==============================================================================
-# HIGH-PRIORITY ENTERPRISE RULES
-# ==============================================================================
-
-# 1. Custom Corporate Credentials
+# 2. Add your own custom detection rules
 [[rules]]
-id = "custom-corporate-api-key"
-description = "Detects internal platform API keys"
+id = "custom-api-key"
+description = "Detects internal custom team API keys"
 regex = '''(?i)secret-[a-z0-9]{32}'''
 secretGroup = 0
-tags = ["key", "internal", "critical"]
+tags = ["key", "internal", "mycompany","secret"]
 
-# 2. Hardcoded Database URLs with Auth
-[[rules]]
-id = "database-uri-authenticated"
-description = "Detects raw DB strings containing username and password"
-regex = '''(?i)(postgres|postgresql|mysql|mongodb|mongodb\+srv|redis|amqp|amqps)://[a-zA-Z0-9_%\-]+:[^@\s]+@[a-zA-Z0-9_\-\.]+:[0-9]+'''
-tags = ["database", "critical"]
-
-# 3. High-Entropy Dynamic Secret Catch-All
-# Evaluates string randomness using Shannon entropy algorithms
-[[rules]]
-id = "generic-high-entropy-assignment"
-description = "Detects non-human random strings assigned to sensitive keys"
-regex = '''(?i)(api[_-]?key|secret|token|password|auth|private[_-]?key)\s*[:=]\s*["']?([A-Za-z0-9+/=_-]{16,})["']?'''
-entropy = 3.5
-secretGroup = 2
-tags = ["entropy", "generic"]
-
-# 4. Strictly Structured Slack Incoming Webhooks
 [[rules]]
 id = "slack-webhook-strict"
 description = "Stricter pattern matching for Slack incoming webhooks"
 regex = '''https://hooks\.slack\.com/services/T[A-Z0-9_]{8}/B[A-Z0-9_]{8}/[A-Za-z0-9_]{24}'''
-keywords = ["hooks.slack.com"]
-tags = ["slack", "webhook"]
+keywords = ["://slack.com"]
 
-# ==============================================================================
-# STRICT ALLOWLIST (Zero Blanket Path Skipping)
-# ==============================================================================
+# 3. Global allowlist to prevent false positives
 [allowlist]
-description = "Strictly bounded false-positive exemptions"
+description = "Global allowlist for tests and documentation examples"
 
-# Scopes path skips ONLY to genuine test fixtures, not whole file extensions (.md, .json)
+# Skip entire paths or specific file patterns using regex
 paths = [
     '''(^|/)nested/testdata/''',
-    '''_test\.go$'''
+    '''_test\.go$''',
+    '''.*\.md$'''
 ]
 
-# Explicitly named mock placeholders only
+# Skip specific known-safe fake/mock strings globally
 regexes = [
-    '''(?i)(your[_-]?api[_-]?key|example[_-]?token|dummy[_-]?pass|placeholder|changeme|xxxx+)''',
+    '''(?i)(your[_-]?api[_-]?key|example|dummy|placeholder|changeme|xxxx+)''',
     '''mycompany-mockkey1234567890abcdefghijk'''
 ]
-
-
