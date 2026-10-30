@@ -136,7 +136,7 @@
 				jjwt-impl
 			</artifactId>
 			<version>
-				0.11.5
+				0.13.0
 			</version>
 			<scope>
 				runtime
