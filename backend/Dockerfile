@@ -16,7 +16,7 @@ COPY src ./src
 RUN mvn -B -ntp -DskipTests package
 
 
-FROM eclipse-temurin:17-jre-alpine AS runtime
+FROM eclipse-temurin:24-jre-alpine AS runtime
 
 # Create a non-root application user
 RUN addgroup -S app-group && adduser -S app-user -G app-group
