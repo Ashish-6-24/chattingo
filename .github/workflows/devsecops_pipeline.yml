@@ -1,56 +1,58 @@
 name: DevSecOps Pipeline
 
 on:
-  pull_request:
-    branches: [main]
+    pull_request:
+        branches: [main]
 
-  push:
-    branches: [main]
+    push:
+        branches: [main]
 
-  workflow_dispatch:
+    workflow_dispatch:
 
 permissions:
-  contents: read
-  security-events: write
+    contents: read
+    security-events: write
 
 jobs:
-  secrets_scanning:
-    name: Secrets Scanning
-    uses: ./.github/workflows/secrets-scanning.yml
-    secrets: inherit
+    secrets_scanning:
+        name: Secrets Scanning
+        uses: ./.github/workflows/secrets-scanning.yml
+        secrets: inherit
 
-  code_quality:
-    name: Code Quality
-    uses: ./.github/workflows/code_quality.yml
-    secrets: inherit
+    code_quality:
+        name: Code Quality
+        uses: ./.github/workflows/code_quality.yml
+        secrets: inherit
 
-  code_test:
-    name: Code Testing
-    uses: ./.github/workflows/code_test.yml
+    code_test:
+        name: Code Testing
+        uses: ./.github/workflows/code_test.yml
 
-  dependency_check:
-    name: Dependency Check
-    uses: ./.github/workflows/dependency-checks.yml
+    dependency_check:
+        name: Dependency Check
+        uses: ./.github/workflows/dependency-checks.yml
 
-  docker_lint:
-    name: Dockerfile Lint
-    uses: ./.github/workflows/docker-lint.yml
+    docker_lint:
+        name: Dockerfile Lint
+        uses: ./.github/workflows/docker-lint.yml
 
-  build-and-push:
-    name: Build and Push Docker Images
-    if: github.event_name != 'pull_request'
-    needs:
-      - secrets_scanning
-      - code_quality
-      - code_test
-      - dependency_check
-      - docker_lint
-    uses: ./.github/workflows/build-and-push.yml
-    secrets: inherit
+    build-and-push:
+        name: Build and Push Docker Images
+        if: github.event_name != 'pull_request'
+        needs: [ code_quality, code_test, dependency_check, docker_lint ]
+        uses: ./.github/workflows/build-and-push.yml
+        secrets: inherit
 
-  image-scan:
-    name: Image Scan
-    needs: build-and-push
-    uses: ./.github/workflows/image-scan.yml
-    with:
-      image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+    image-scan:
+        name: Image Scan
+        needs: build-and-push
+        uses: ./.github/workflows/image-scan.yml
+        with:
+            image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+
+    dast:
+      name: DAST Scan
+      needs: [ image-scan ]
+      uses: ./.github/workflows/dast.yml
+      secrets: inherit
+      
