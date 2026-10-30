@@ -25,3 +25,11 @@ jobs:
   dependency_check:
     uses:  ./.github/workflows/dependency-checks.yml
 
+  docker_build_and_push:
+    uses: ./.github/workflows/build-and-push.yml
+    secrets: inherit
+
+  docker_scan:
+    uses: ./.github/workflows/docker-scan.yml
+
+
