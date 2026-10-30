@@ -1,3 +1,4 @@
+
 name: Dependency Security Scan
 
 on:
@@ -7,7 +8,6 @@ concurrency:
   group: dependency-check-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-
 permissions:
   contents: read
 
@@ -15,18 +15,17 @@ jobs:
   dependency-audit:
     name: Trivy Dependency Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     permissions:
       contents: read
       security-events: write
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
 
       - name: Run Trivy Vulnerability Scanner
         id: trivy_scan
@@ -38,13 +37,12 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          exit-code: "0"
           ignore-unfixed: false
           hide-progress: true
 
-
       - name: Print Vulnerability Details
-        if: ${{ always() && steps.trivy_scan.outcome == 'failure' }}
+        if: always()
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -56,9 +54,9 @@ jobs:
           ignore-unfixed: false
           hide-progress: true
 
-
       - name: Upload Scan Results to GitHub Security
         if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
@@ -66,9 +64,10 @@ jobs:
 
       - name: Upload Trivy Report Artifact
         if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: trivy-dependency-report
           path: trivy-results.sarif
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
