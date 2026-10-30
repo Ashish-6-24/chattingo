@@ -1,58 +1,71 @@
+
 name: DevSecOps Pipeline
 
 on:
-    pull_request:
-        branches: [main]
+  pull_request:
+    branches: [main]
 
-    push:
-        branches: [main]
+  push:
+    branches: [main]
 
-    workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
-    contents: read
-    security-events: write
+  contents: read
+  security-events: write
 
 jobs:
-    secrets_scanning:
-        name: Secrets Scanning
-        uses: ./.github/workflows/secrets-scanning.yml
-        secrets: inherit
+  # ---------------- SECURITY AND QUALITY CHECKS ----------------
 
-    code_quality:
-        name: Code Quality
-        uses: ./.github/workflows/code_quality.yml
-        secrets: inherit
+  secrets_scanning:
+    name: Secrets Scanning
+    uses: ./.github/workflows/secrets-scanning.yml
+    secrets: inherit
 
-    code_test:
-        name: Code Testing
-        uses: ./.github/workflows/code_test.yml
+  code_quality:
+    name: Code Quality
+    uses: ./.github/workflows/code_quality.yml
+    secrets: inherit
 
-    dependency_check:
-        name: Dependency Check
-        uses: ./.github/workflows/dependency-checks.yml
+  code_test:
+    name: Code Testing
+    uses: ./.github/workflows/code_test.yml
 
-    docker_lint:
-        name: Dockerfile Lint
-        uses: ./.github/workflows/docker-lint.yml
+  dependency_check:
+    name: Dependency Check
+    uses: ./.github/workflows/dependency-checks.yml
 
-    build-and-push:
-        name: Build and Push Docker Images
-        if: github.event_name != 'pull_request'
-        needs: [ code_quality, code_test, dependency_check, docker_lint ]
-        uses: ./.github/workflows/build-and-push.yml
-        secrets: inherit
+  docker_lint:
+    name: Dockerfile Lint
+    uses: ./.github/workflows/docker-lint.yml
 
-    image-scan:
-        name: Image Scan
-        needs: build-and-push
-        uses: ./.github/workflows/image-scan.yml
-        with:
-            image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+  # ---------------- BUILD AND PUSH ----------------
 
-    dast:
-      name: DAST Scan
-      needs: image-scan 
-      uses: ./.github/workflows/dast.yml
-      secrets: inherit
+  build-and-push:
+    name: Build and Push Docker Images
+    if: github.event_name != 'pull_request'
+    needs: [code_quality, code_test, dependency_check, docker_lint]
+    uses: ./.github/workflows/build-and-push.yml
+    secrets: inherit
 
+  # ---------------- CONTAINER IMAGE SCANNING ----------------
+
+  image-scan:
+    name: Image Scan
+    needs: build-and-push
+    uses: ./.github/workflows/image-scan.yml
+    with:
+      image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+    secrets: inherit
+
+  # ---------------- DYNAMIC APPLICATION SECURITY TESTING ----------------
+
+  dast:
+    name: DAST Scan
+    needs:
+      - build-and-push
+      - image-scan
+    uses: ./.github/workflows/dast.yml
+    with:
+      image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+    secrets: inherit

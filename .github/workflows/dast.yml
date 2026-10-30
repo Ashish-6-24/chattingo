@@ -9,11 +9,8 @@ on:
         required: true
         type: string
 
-  pull_request:
-    branches: [main]
-
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-dast
   cancel-in-progress: true
 
 permissions:
@@ -21,21 +18,25 @@ permissions:
 
 jobs:
   fast_dast:
-    name: OWASP ZAP Baseline Scan
+    name: OWASP ZAP Scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     env:
       BACKEND_IMAGE: ashish0624/chattingo-backend
       FRONTEND_IMAGE: ashish0624/chattingo-frontend
-      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
 
     steps:
+      # ---------------- CHECKOUT ----------------
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 1
+
+      # ---------------- GENERATE CI CREDENTIALS ----------------
 
       - name: Generate CI Credentials
         run: |
@@ -51,14 +52,20 @@ jobs:
             echo "SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/chattingo_db?createDatabaseIfNotExist=true"
           } >> "$GITHUB_ENV"
 
+      # ---------------- START APPLICATION ----------------
+
       - name: Start Chattingo Using Prebuilt Images
         run: |
           docker compose -f docker-compose.dast.yml up -d
+
+      # ---------------- APPLICATION HEALTH CHECK ----------------
 
       - name: Wait for Application
         run: |
           timeout 120s bash -c \
             'until curl -fsS http://localhost:80/ >/dev/null; do sleep 2; done'
+
+      # ---------------- OWASP ZAP BASELINE SCAN ----------------
 
       - name: Run OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.15.0
@@ -66,6 +73,8 @@ jobs:
           target: 'http://localhost:80'
           fail_action: true
           allow_issue_writing: false
+
+      # ---------------- CLEANUP ----------------
 
       - name: Cleanup Containers
         if: always()
