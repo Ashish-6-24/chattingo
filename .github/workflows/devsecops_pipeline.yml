@@ -1,3 +1,4 @@
+
 name: DevSecOps Pipeline
 
 on:
@@ -15,21 +16,42 @@ permissions:
 
 jobs:
   secrets_scanning:
+    name: Secrets Scanning
     uses: ./.github/workflows/secrets-scanning.yml
     secrets: inherit
 
   code_quality:
+    name: Code Quality
     uses: ./.github/workflows/code_quality.yml
     secrets: inherit
 
-  dependency_check:
-    uses:  ./.github/workflows/dependency-checks.yml
+  code_test:
+    name: Code Testing
+    uses: ./.github/workflows/code_test.yml
 
-  docker_build_and_push:
+  dependency_check:
+    name: Dependency Check
+    uses: ./.github/workflows/dependency-checks.yml
+
+  docker_lint:
+    name: Dockerfile Lint
+    uses: ./.github/workflows/docker-lint.yml
+
+  build-and-push:
+    name: Build and Push Docker Images
+    if: github.event_name != 'pull_request'
+    needs:
+      - secrets_scanning
+      - code_quality
+      - code_test
+      - dependency_check
+      - docker_lint
     uses: ./.github/workflows/build-and-push.yml
     secrets: inherit
 
-  docker_scan:
+  docker-scan:
+    name: Docker Image Scan
+    needs: build-and-push
     uses: ./.github/workflows/docker-scan.yml
-
-
+    with:
+      image_tag: ${{ needs.build-and-push.outputs.image_tag }}

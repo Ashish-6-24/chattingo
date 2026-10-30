@@ -1,0 +1,34 @@
+
+name: Docker Lint
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-lint:
+    name: Docker Lint (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [backend, frontend]
+
+    steps:
+      # Checkout repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Dockerfile static analysis
+      - name: Hadolint Dockerfile Scan
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ./${{ matrix.target }}/Dockerfile
+          failure-threshold: error
+          no-fail: false
