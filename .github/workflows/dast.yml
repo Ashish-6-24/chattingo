@@ -11,56 +11,55 @@ jobs:
   OWASP_ZAP_DAST_Scan:
     name: OWASP ZAP Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
-      # ---------------- APPLICATION HEALTH CHECK ----------------
+      # ---------------- CHECKOUT ----------------
 
-      - name: Validate Target URL
-        env:
-          TARGET_URL: ${{ secrets.CHATTINGO_URL }}
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      # ---------------- START APPLICATION ----------------
+
+      - name: Start Chattingo Services
         run: |
-          if [[ -z "$TARGET_URL" ]]; then
-            echo "::error::CHATTINGO_URL repository or organization secret is missing or unavailable."
-            exit 1
-          fi
+          docker compose up -d --build
 
-          if [[ ! "$TARGET_URL" =~ ^https?:// ]]; then
-            echo "::error::CHATTINGO_URL must start with http:// or https://"
-            exit 1
-          fi
-
-          TARGET_URL="${TARGET_URL%/}"
-
-          if ! curl -fsSI --max-time 10 "$TARGET_URL/" > /dev/null; then
-            echo "::error::Target URL is not currently reachable: $TARGET_URL"
-            exit 1
-          fi
-
-          echo "Target URL validation successful."
+      # ---------------- HEALTH CHECK ----------------
 
       - name: Wait for Chattingo to be Healthy
-        env:
-          TARGET_URL: ${{ secrets.CHATTINGO_URL }}
         run: |
-          TARGET_URL="${TARGET_URL%/}"
+          echo "Waiting for Chattingo frontend..."
 
-          echo "Checking application readiness..."
-
-          timeout 120s bash -c '
-            until curl -fsSL --max-time 10 "$TARGET_URL/" > /dev/null; do
-              echo "Waiting for Chattingo..."
+          timeout 180s bash -c '
+            until curl -fsS http://localhost:8080/ > /dev/null; do
+              echo "Waiting for application..."
               sleep 5
             done
           '
 
-          echo "Chattingo is healthy."
+          echo "Chattingo frontend is reachable."
 
-      # ---------------- OWASP ZAP BASELINE SCAN ----------------
+      # ---------------- OWASP ZAP ----------------
 
-      - name: OWASP ZAP Scan
+      - name: OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.15.0
         with:
-          target: ${{ secrets.CHATTINGO_URL }}
+          target: http://host.docker.internal:8080
           fail_action: false
           allow_issue_writing: false
+
+      # ---------------- DIAGNOSTICS ----------------
+
+      - name: Collect Container Logs
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=100
+
+      # ---------------- CLEANUP ----------------
+
+      - name: Stop Chattingo Services
+        if: always()
+        run: |
+          docker compose down -v --remove-orphans
