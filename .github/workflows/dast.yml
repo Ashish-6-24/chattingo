@@ -44,19 +44,19 @@ jobs:
         id: readiness
         continue-on-error: true
         run: |
-          echo "Waiting for Chattingo..."
+          echo "Waiting for Chattingo frontend..."
 
           timeout 180s bash -c '
-            until curl --fail --silent \
+            until curl --fail --silent --show-error \
               http://127.0.0.1/ > /dev/null; do
               echo "Waiting for frontend..."
               sleep 5
             done
           '
 
-          echo "Frontend is reachable."
+          echo "Chattingo frontend is reachable."
 
-      # ---------------- DIAGNOSTICS ----------------
+      # ---------------- APPLICATION DIAGNOSTICS ----------------
 
       - name: Collect Application Diagnostics
         if: always()
@@ -64,24 +64,33 @@ jobs:
           docker compose ps
           docker compose logs --no-color --tail=150
 
-      # ---------------- OWASP ZAP ----------------
+      # ---------------- OWASP ZAP BASELINE SCAN ----------------
 
       - name: OWASP ZAP Baseline Scan
+        id: zap
         if: steps.readiness.outcome == 'success'
         uses: zaproxy/action-baseline@v0.15.0
         with:
-          target: http://host.docker.internal/
+          target: http://127.0.0.1/
           fail_action: false
           allow_issue_writing: false
 
-      # ---------------- REPORT APPLICATION STATUS ----------------
+      # ---------------- REPORT DAST STATUS ----------------
 
-      - name: Report DAST Environment Status
+      - name: Report DAST Status
         if: always()
         run: |
           if [[ "${{ steps.readiness.outcome }}" != "success" ]]; then
-            echo "::warning::Chattingo did not become reachable. ZAP was skipped."
-            echo "::warning::Review Docker Compose and application logs."
+            echo "::warning::Chattingo did not become reachable."
+            echo "::warning::OWASP ZAP scan was skipped."
+            echo "::warning::Review application and Docker Compose logs."
+
+          elif [[ "${{ steps.zap.outcome }}" != "success" ]]; then
+            echo "::warning::OWASP ZAP did not complete successfully."
+            echo "::warning::Review ZAP execution logs and reports."
+
+          else
+            echo "OWASP ZAP baseline scan completed."
           fi
 
       # ---------------- CLEANUP ----------------
