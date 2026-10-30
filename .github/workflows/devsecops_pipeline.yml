@@ -60,12 +60,13 @@ jobs:
 
   # ---------------- DYNAMIC APPLICATION SECURITY TESTING ----------------
 
+
+  # ---------------- DYNAMIC APPLICATION SECURITY TESTING ----------------
+
   dast:
     name: DAST Scan
     needs:
       - build-and-push
       - image-scan
     uses: ./.github/workflows/dast.yml
-    with:
-      image_tag: ${{ needs.build-and-push.outputs.image_tag }}
     secrets: inherit
