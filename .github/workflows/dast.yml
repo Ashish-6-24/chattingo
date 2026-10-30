@@ -1,25 +1,51 @@
+
 name: DAST Scan
 
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   OWASP_ZAP_DAST_Scan:
     name: OWASP ZAP Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       # ---------------- APPLICATION HEALTH CHECK ----------------
+
+      - name: Validate Target URL
+        env:
+          TARGET_URL: ${{ secrets.CHATTINGO_URL }}
+        run: |
+          if [[ -z "$TARGET_URL" ]]; then
+            echo "::error::CHATTINGO_URL repository or organization secret is missing or unavailable."
+            exit 1
+          fi
+
+          if [[ ! "$TARGET_URL" =~ ^https?:// ]]; then
+            echo "::error::CHATTINGO_URL must start with http:// or https://"
+            exit 1
+          fi
+
+          TARGET_URL="${TARGET_URL%/}"
+
+          if ! curl -fsSI --max-time 10 "$TARGET_URL/" > /dev/null; then
+            echo "::error::Target URL is not currently reachable: $TARGET_URL"
+            exit 1
+          fi
+
+          echo "Target URL validation successful."
 
       - name: Wait for Chattingo to be Healthy
         env:
           TARGET_URL: ${{ secrets.CHATTINGO_URL }}
         run: |
-          if [[ -z "$TARGET_URL" ]]; then
-            echo "::error::CHATTINGO_URL secret is missing"
-            exit 1
-          fi
+          TARGET_URL="${TARGET_URL%/}"
+
+          echo "Checking application readiness..."
 
           timeout 120s bash -c '
             until curl -fsSL --max-time 10 "$TARGET_URL/" > /dev/null; do
@@ -27,6 +53,8 @@ jobs:
               sleep 5
             done
           '
+
+          echo "Chattingo is healthy."
 
       # ---------------- OWASP ZAP BASELINE SCAN ----------------
 
