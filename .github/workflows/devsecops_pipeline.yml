@@ -52,7 +52,7 @@ jobs:
 
     dast:
       name: DAST Scan
-      needs: [ image-scan ]
+      needs: image-scan 
       uses: ./.github/workflows/dast.yml
       secrets: inherit
-      
+

@@ -3,68 +3,72 @@ name: DAST Scan
 
 on:
   workflow_call:
+    inputs:
+      image_tag:
+        description: "Git SHA tag of the application images"
+        required: true
+        type: string
 
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
-# Cancel redundant workflow runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   fast_dast:
-    name: DAST Scan
+    name: OWASP ZAP Baseline Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+
+    env:
+      BACKEND_IMAGE: ashish0624/chattingo-backend
+      FRONTEND_IMAGE: ashish0624/chattingo-frontend
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
 
     steps:
-      # ---------------- CHECKOUT ----------------
-
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 1
 
-      # ---------------- START APPLICATION ----------------
-
-      - name: Build and Start Chattingo
+      - name: Generate CI Credentials
         run: |
-          export JWT_SECRET="$(openssl rand -hex 32)"
-          export MYSQL_ROOT_PASSWORD="$(openssl rand -hex 32)"
-          export MYSQL_PASSWORD="$(openssl rand -hex 32)"
-          export MYSQL_DATABASE="chattingo_db"
-          export MYSQL_USER="chattingo_ci"
-          export SPRING_DATASOURCE_URL="jdbc:mysql://mysql:3306/chattingo_db?createDatabaseIfNotExist=true"
+          {
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "MYSQL_ROOT_PASSWORD=$(openssl rand -hex 32)"
+            echo "MYSQL_PASSWORD=$(openssl rand -hex 32)"
+          } >> "$GITHUB_ENV"
 
-          docker compose up --build -d
+          {
+            echo "MYSQL_DATABASE=chattingo_db"
+            echo "MYSQL_USER=chattingo_ci"
+            echo "SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/chattingo_db?createDatabaseIfNotExist=true"
+          } >> "$GITHUB_ENV"
 
-      # ---------------- APPLICATION HEALTH CHECK ----------------
-
-      - name: Wait for App to be Ready
+      - name: Start Chattingo Using Prebuilt Images
         run: |
-          timeout 180s bash -c \
-            'until curl -fsS http://localhost:80/ > /dev/null; do sleep 2; done'
+          docker compose -f docker-compose.dast.yml up -d
 
-      # ---------------- OWASP ZAP BASELINE SCAN ----------------
-
-      - name: Get Docker Gateway IP
-        id: gateway
+      - name: Wait for Application
         run: |
-          IP=$(ip -4 -o addr show docker0 | awk '{split($4,a,"/"); print a[1]}')
-
-          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          timeout 120s bash -c \
+            'until curl -fsS http://localhost:80/ >/dev/null; do sleep 2; done'
 
       - name: Run OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.15.0
         with:
-          target: 'http://${{ steps.gateway.outputs.ip }}:80'
-          fail_action: false  # Make it true when you want the workflow to fail on alerts
+          target: 'http://localhost:80'
+          fail_action: true
           allow_issue_writing: false
 
-      # ---------------- CLEANUP ----------------
-
-      - name: Stop Application Containers
+      - name: Cleanup Containers
         if: always()
-        run: docker compose down --volumes --remove-orphans || true
+        run: |
+          docker compose -f docker-compose.dast.yml down \
+            --volumes --remove-orphans || true
