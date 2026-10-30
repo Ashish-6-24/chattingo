@@ -6,7 +6,7 @@ on:
 
 jobs:
   code_test:
-    name: Application Tests
+    name: code test
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

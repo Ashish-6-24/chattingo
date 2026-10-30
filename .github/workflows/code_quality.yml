@@ -1,26 +1,31 @@
-name: Code Quality & Security Gate
+
+name: Code Quality
 
 on:
   workflow_call:
     secrets:
       SEMGREP_APP_TOKEN:
-        required: true
+        required: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: code-quality-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
+
+  # ---------------- BACKEND QUALITY + SAST ----------------
+
   backend:
-    name: Backend Quality 
+    name: backend quality
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    permissions:
-      contents: read
+    container:
+      image: semgrep/semgrep:1.182.1
 
     defaults:
       run:
@@ -42,17 +47,39 @@ jobs:
 
       - name: Compile and Run SpotBugs
         continue-on-error: true
-        run: >-
-          ./mvnw -B -ntp compile
-          com.github.spotbugs:spotbugs-maven-plugin:4.8.6.0:check
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B -ntp compile \
+            com.github.spotbugs:spotbugs-maven-plugin:4.8.6.0:check
+
+      - name: Run Semgrep SAST - Java
+        continue-on-error: true
+        run: |
+          semgrep scan \
+            --config p/java \
+            --config p/security-audit \
+            --sarif \
+            --output semgrep-backend.sarif \
+            .
+
+      - name: Upload Backend SAST Results
+        if: ${{ always() && hashFiles('backend/semgrep-backend.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: backend/semgrep-backend.sarif
+          category: semgrep-backend
+
+
+  # ---------------- FRONTEND QUALITY + SAST ----------------
 
   frontend:
-    name: Frontend Quality
+    name: frontend quality
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    permissions:
-      contents: read
+    container:
+      image: semgrep/semgrep:1.182.1
 
     defaults:
       run:
@@ -64,7 +91,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node.js (v22)
+      - name: Set up Node.js (22)
         uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -78,36 +105,23 @@ jobs:
         continue-on-error: true
         run: npx --no-install eslint src --max-warnings=0
 
-      - name: Build Frontend
-        run: npm run build
-
-  semgrep:
-    name: Semgrep SAST
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-
-    container:
-      image: semgrep/semgrep:1.182.1
-
-    permissions:
-      contents: read
-      security-events: write
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Run Semgrep CI
+      - name: Run Semgrep SAST - React
         continue-on-error: true
-        run: semgrep ci --sarif-output=semgrep.sarif
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          semgrep scan \
+            --config p/javascript \
+            --config p/react \
+            --sarif \
+            --output semgrep-frontend.sarif \
+            .
 
-      - name: Upload Semgrep SARIF to Security Tab
-        if: ${{ always() && hashFiles('semgrep.sarif') != '' }}
+      - name: Upload Frontend SAST Results
+        if: ${{ always() && hashFiles('frontend/semgrep-frontend.sarif') != '' }}
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep.sarif
-          category: semgrep-security
+          sarif_file: frontend/semgrep-frontend.sarif
+          category: semgrep-frontend
+
+      - name: Build Frontend
+        run: npm run build
