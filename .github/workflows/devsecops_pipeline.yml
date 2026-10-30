@@ -1,4 +1,3 @@
-
 name: DevSecOps Pipeline
 
 on:
@@ -49,9 +48,9 @@ jobs:
     uses: ./.github/workflows/build-and-push.yml
     secrets: inherit
 
-  docker-scan:
-    name: Docker Image Scan
+  image-scan:
+    name: Image Scan
     needs: build-and-push
-    uses: ./.github/workflows/docker-scan.yml
+    uses: ./.github/workflows/image-scan.yml
     with:
       image_tag: ${{ needs.build-and-push.outputs.image_tag }}
